@@ -3,7 +3,6 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  output: "standalone",
   // TODO: убрать после генерации реальных типов через `pnpm db:types`.
   // Сейчас Database = any-плейсхолдер, из-за чего supabase-js возвращает
   // FK-relations как массивы, хотя в runtime это объекты. После генерации
