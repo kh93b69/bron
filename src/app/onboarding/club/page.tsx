@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 
 export default function ClubOnboardingPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -40,8 +38,9 @@ export default function ClubOnboardingPage() {
       return;
     }
     toast.success("Клуб создан");
-    router.push("/admin");
-    router.refresh();
+    // Full reload — аналогично /login: гарантируем, что /admin/layout увидит
+    // свежее membership в БД (SSR-запрос без кэша).
+    window.location.assign("/admin");
   }
 
   function upd<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {

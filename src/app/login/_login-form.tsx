@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -9,7 +9,6 @@ import { createClient } from "@/lib/supabase/client";
 type Stage = "email" | "code" | "success";
 
 export function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const redirectTo = params.get("redirect") ?? "/";
 
@@ -62,10 +61,11 @@ export function LoginForm() {
       destination = memberships && memberships.length > 0 ? "/admin" : "/onboarding/club";
     }
 
-    setLoading(false);
     setStage("success");
-    router.push(destination);
-    router.refresh();
+    // Полный reload вместо router.push — гарантируем, что server-components
+    // (/admin/layout, /onboarding/club) увидят свежую Supabase-сессию в куках.
+    // Клиентская навигация иногда не успевает синхронизировать sb-*-auth-token.
+    window.location.assign(destination);
   }
 
   return (
