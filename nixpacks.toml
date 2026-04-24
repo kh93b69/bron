@@ -1,0 +1,14 @@
+# Railway использует Nixpacks для сборки.
+# Указываем Node 20 и pnpm, чтобы соответствовать packageManager из package.json.
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "pnpm-9_x"]
+
+[phases.install]
+cmds = ["pnpm install --frozen-lockfile"]
+
+[phases.build]
+cmds = ["pnpm build"]
+
+[start]
+cmd = "pnpm start"
