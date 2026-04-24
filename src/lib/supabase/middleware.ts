@@ -1,7 +1,9 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 import { publicEnv } from "@/lib/env";
+
+type CookiePayload = { name: string; value: string; options: CookieOptions };
 
 /**
  * Обновляет сессию Supabase в каждом запросе: RSC всегда видит свежие куки.
@@ -18,10 +20,12 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        setAll(cookiesToSet: CookiePayload[]) {
+          cookiesToSet.forEach(({ name, value }: CookiePayload) =>
+            request.cookies.set(name, value),
+          );
           response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value, options }: CookiePayload) =>
             response.cookies.set(name, value, options),
           );
         },

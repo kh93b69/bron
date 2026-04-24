@@ -24,7 +24,7 @@ export default function ClubOnboardingPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const { data, error } = await supabase.rpc("create_club_with_owner", {
+    const { error } = await supabase.rpc("create_club_with_owner", {
       p_name: form.name,
       p_slug: form.slug,
       p_city: form.city,

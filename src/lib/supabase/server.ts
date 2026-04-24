@@ -1,8 +1,10 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { publicEnv, serverEnv } from "@/lib/env";
+
+type CookiePayload = { name: string; value: string; options: CookieOptions };
 
 /**
  * Server Component / Server Action / Route Handler клиент.
@@ -18,9 +20,9 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: CookiePayload[]) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
+            cookiesToSet.forEach(({ name, value, options }: CookiePayload) =>
               cookieStore.set(name, value, options),
             );
           } catch {

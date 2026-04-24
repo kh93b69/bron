@@ -1,17 +1,14 @@
 /**
- * Placeholder для типов, генерируемых Supabase CLI:
+ * Плейсхолдер. Реальные типы генерируются Supabase CLI:
  *   pnpm db:types
  *
- * После генерации этот файл будет перезаписан реальной схемой.
+ * Пока БД ещё не привязана локально, используем максимально открытый тип,
+ * чтобы supabase-js не ругался на дженерики таблиц/функций. После генерации
+ * реальной схемы этот файл будет полностью перезаписан.
  */
 
-export type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Json = any;
 
-export interface Database {
-  public: {
-    Tables: Record<string, { Row: Record<string, unknown>; Insert: Record<string, unknown>; Update: Record<string, unknown> }>;
-    Views: Record<string, { Row: Record<string, unknown> }>;
-    Functions: Record<string, { Args: Record<string, unknown>; Returns: unknown }>;
-    Enums: Record<string, string>;
-  };
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Database = any;
