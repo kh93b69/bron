@@ -39,14 +39,32 @@ export function LoginForm() {
     e.preventDefault();
     setLoading(true);
     const supabase = createClient();
-    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: "email" });
-    setLoading(false);
-    if (error) {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token: code,
+      type: "email",
+    });
+    if (error || !data.user) {
+      setLoading(false);
       toast.error("Неверный или просроченный код");
       return;
     }
+
+    // Если пришли с ?redirect=... — уважаем его.
+    // Иначе — смарт-редирект: есть клуб → /admin, нет → /onboarding/club.
+    let destination = redirectTo;
+    if (redirectTo === "/") {
+      const { data: memberships } = await supabase
+        .from("club_members")
+        .select("club_id")
+        .eq("user_id", data.user.id)
+        .limit(1);
+      destination = memberships && memberships.length > 0 ? "/admin" : "/onboarding/club";
+    }
+
+    setLoading(false);
     setStage("success");
-    router.push(redirectTo);
+    router.push(destination);
     router.refresh();
   }
 
