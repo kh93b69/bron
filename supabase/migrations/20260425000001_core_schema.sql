@@ -40,22 +40,11 @@ CREATE TRIGGER users_updated_at BEFORE UPDATE ON public.users
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
--- SELECT: свой профиль или admin клуба, где у user есть бронь
-CREATE POLICY users_select_self_or_club_staff ON public.users
-  FOR SELECT USING (
-    id = auth.uid()
-    OR EXISTS (
-      SELECT 1
-      FROM public.bookings b
-      JOIN public.club_members cm ON cm.club_id = b.club_id
-      WHERE b.user_id = public.users.id AND cm.user_id = auth.uid()
-    )
-  );
-
 CREATE POLICY users_update_self ON public.users
   FOR UPDATE USING (id = auth.uid()) WITH CHECK (id = auth.uid());
 
 -- INSERT напрямую запрещён — строка создаётся триггером on_auth_user_created.
+-- SELECT-политика с cross-table refs (bookings + club_members) — в конце файла.
 
 -- ============================================================================
 -- USER REPUTATION
@@ -77,17 +66,7 @@ ALTER TABLE public.user_reputation ENABLE ROW LEVEL SECURITY;
 CREATE POLICY reputation_select_self ON public.user_reputation
   FOR SELECT USING (user_id = auth.uid());
 
-CREATE POLICY reputation_select_club_staff ON public.user_reputation
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1
-      FROM public.bookings b
-      JOIN public.club_members cm ON cm.club_id = b.club_id
-      WHERE b.user_id = public.user_reputation.user_id
-        AND cm.user_id = auth.uid()
-    )
-  );
-
+-- SELECT-политика club_staff с cross-table refs — в конце файла.
 -- Пишет только SECURITY DEFINER функция apply_reputation_event, никаких direct UPDATE.
 
 -- ============================================================================
@@ -126,21 +105,7 @@ CREATE POLICY clubs_select_public ON public.clubs
 CREATE POLICY clubs_insert_authenticated ON public.clubs
   FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
-CREATE POLICY clubs_update_owner ON public.clubs
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM public.club_members cm
-      WHERE cm.club_id = clubs.id AND cm.user_id = auth.uid() AND cm.role = 'owner'
-    )
-  );
-
-CREATE POLICY clubs_delete_owner ON public.clubs
-  FOR DELETE USING (
-    EXISTS (
-      SELECT 1 FROM public.club_members cm
-      WHERE cm.club_id = clubs.id AND cm.user_id = auth.uid() AND cm.role = 'owner'
-    )
-  );
+-- UPDATE/DELETE-политики с ссылкой на club_members — в конце файла.
 
 -- ============================================================================
 -- CLUB MEMBERS (owner/admin)
@@ -462,6 +427,53 @@ CREATE POLICY invitations_insert_club_owner ON public.invitations
       WHERE cm.club_id = invitations.club_id
         AND cm.user_id = auth.uid()
         AND cm.role = 'owner'
+    )
+  );
+
+-- ============================================================================
+-- CROSS-TABLE POLICIES
+-- Политики, ссылающиеся на несколько таблиц, создаются в конце — все таблицы
+-- уже существуют, Postgres успешно валидирует CREATE POLICY.
+-- ============================================================================
+
+-- users: admin клуба видит профили гостей, у которых есть брони в его клубе
+CREATE POLICY users_select_self_or_club_staff ON public.users
+  FOR SELECT USING (
+    id = auth.uid()
+    OR EXISTS (
+      SELECT 1
+      FROM public.bookings b
+      JOIN public.club_members cm ON cm.club_id = b.club_id
+      WHERE b.user_id = public.users.id AND cm.user_id = auth.uid()
+    )
+  );
+
+-- user_reputation: admin клуба видит рейтинг гостей, у которых есть брони
+CREATE POLICY reputation_select_club_staff ON public.user_reputation
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1
+      FROM public.bookings b
+      JOIN public.club_members cm ON cm.club_id = b.club_id
+      WHERE b.user_id = public.user_reputation.user_id
+        AND cm.user_id = auth.uid()
+    )
+  );
+
+-- clubs: только owner может менять или удалять клуб
+CREATE POLICY clubs_update_owner ON public.clubs
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM public.club_members cm
+      WHERE cm.club_id = clubs.id AND cm.user_id = auth.uid() AND cm.role = 'owner'
+    )
+  );
+
+CREATE POLICY clubs_delete_owner ON public.clubs
+  FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM public.club_members cm
+      WHERE cm.club_id = clubs.id AND cm.user_id = auth.uid() AND cm.role = 'owner'
     )
   );
 
