@@ -208,9 +208,12 @@ BEGIN
     v_total := v_total + v_price;
   END LOOP;
 
-  -- Генерим code (CB-XXXXXXXX, 8 символов из безопасного алфавита)
+  -- Генерим booking_code: CB-XXXXXXXX (8 hex-символов из gen_random_uuid).
+  -- gen_random_uuid() — в core PostgreSQL, не требует pgcrypto в search_path
+  -- (в Supabase pgcrypto установлен в schema "extensions", а у функции
+  --  search_path = public — gen_random_bytes() оттуда недоступен).
   LOOP
-    v_code := 'CB-' || upper(substring(encode(gen_random_bytes(6), 'hex') FROM 1 FOR 8));
+    v_code := 'CB-' || upper(substring(replace(gen_random_uuid()::text, '-', '') FROM 1 FOR 8));
     EXIT WHEN NOT EXISTS (SELECT 1 FROM public.bookings WHERE booking_code = v_code);
   END LOOP;
 
