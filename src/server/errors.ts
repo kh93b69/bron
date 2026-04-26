@@ -65,7 +65,15 @@ export function toAppError(e: unknown): AppError {
   if (msg === "NOT_FOUND") return AppErrors.notFound();
   if (msg === "FORBIDDEN" || (e as { code?: string })?.code === "42501") return AppErrors.forbidden();
   console.error("[toAppError] unknown", e);
-  return AppErrors.internal();
+  // Возвращаем детали Postgres-ошибки в details: позволяет видеть реальную
+  // причину (RAISE message, FK-violation, missing function, etc.) во время
+  // отладки. В дальнейшем можно скрыть детали в production.
+  const err = e as { message?: string; hint?: string; code?: string; details?: string };
+  return new AppError("INTERNAL_ERROR", 500, err.message ?? "Внутренняя ошибка", {
+    pg_code: err.code,
+    hint: err.hint,
+    pg_details: err.details,
+  });
 }
 
 export function errorToJson(err: AppError) {

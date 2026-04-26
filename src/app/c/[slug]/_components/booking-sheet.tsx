@@ -113,7 +113,11 @@ export function BookingSheet({
       });
       const json = await res.json();
       if (!res.ok) {
-        throw new Error(json?.error?.message ?? "Не удалось создать бронь");
+        const reason =
+          json?.error?.details?.pg_details ||
+          json?.error?.message ||
+          "Не удалось создать бронь";
+        throw new Error(reason);
       }
       setBookingCode(json.data.booking_code);
       setStage("success");
