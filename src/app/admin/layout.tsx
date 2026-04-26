@@ -11,13 +11,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!user) redirect("/login?redirect=/admin");
 
-  const { data: memberships, error: memErr } = await supabase
+  const { data: memberships } = await supabase
     .from("club_members")
     .select("role, club_id, clubs(id, name, slug)")
     .eq("user_id", user.id);
-
-  console.log("[admin/layout] user", user.id, user.email);
-  console.log("[admin/layout] memberships", memberships?.length, "err:", memErr?.message);
 
   if (!memberships || memberships.length === 0) {
     redirect("/onboarding/club");
