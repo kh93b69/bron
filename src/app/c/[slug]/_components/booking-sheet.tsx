@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, Loader2, Mail, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { formatTenge, hoursBetween } from "@/lib/utils";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Field, Input } from "@/components/ui/input";
 
 type Station = { id: string; name: string; zone_id: string };
 type Zone = { id: string; name: string; color: string; price_per_hour: number };
@@ -45,7 +49,7 @@ export function BookingSheet({
         setStage("summary");
         setCode("");
         setBookingCode(null);
-      }, 200);
+      }, 250);
       return;
     }
     const supabase = createClient();
@@ -62,12 +66,8 @@ export function BookingSheet({
     const {
       data: { user },
     } = await supabase.auth.getUser();
-
-    if (user) {
-      await createBooking();
-    } else {
-      setStage("email");
-    }
+    if (user) await createBooking();
+    else setStage("email");
   }
 
   async function sendOtp() {
@@ -123,55 +123,35 @@ export function BookingSheet({
       setStage("success");
       router.refresh();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Ошибка";
-      toast.error(msg);
+      toast.error(e instanceof Error ? e.message : "Ошибка");
       setStage("summary");
     } finally {
       setLoading(false);
     }
   }
 
-  if (!open) return null;
-
   const hours = hoursBetween(new Date(slot.from), new Date(slot.to));
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end bg-black/50 backdrop-blur-sm sm:items-center sm:justify-center"
-      role="dialog"
-      aria-modal="true"
-      onClick={() => onOpenChange(false)}
-    >
-      <div
-        className="w-full rounded-t-2xl border border-border bg-background p-5 shadow-xl sm:max-w-md sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        title={stage === "success" ? "Бронь подтверждена" : "Оформление брони"}
+        onClose={() => onOpenChange(false)}
       >
-        <div className="mb-4 flex items-start justify-between">
-          <h3 className="text-lg font-semibold">
-            {stage === "success" ? "Бронь подтверждена" : "Оформление брони"}
-          </h3>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="rounded-md p-1 hover:bg-muted"
-            aria-label="Закрыть"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
         {stage === "summary" && (
           <>
-            <SummaryList stations={stations} zoneById={zoneById} slot={slot} hours={hours} total={total} />
-            <button
-              type="button"
+            <Summary stations={stations} zoneById={zoneById} slot={slot} hours={hours} total={total} />
+            <Button
+              size="lg"
+              className="mt-5 w-full"
+              loading={loading}
               onClick={startBooking}
-              disabled={loading}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-[var(--color-brand-500)] px-4 py-3 text-sm font-medium text-white hover:bg-[var(--color-brand-600)] disabled:opacity-60"
             >
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
               Забронировать за {formatTenge(total)}
-            </button>
+            </Button>
+            <p className="mt-3 text-center text-[11px] text-[var(--color-fg-subtle)]">
+              Подтверждение по 6-значному коду на email · без регистрации
+            </p>
           </>
         )}
 
@@ -181,28 +161,25 @@ export function BookingSheet({
               e.preventDefault();
               sendOtp();
             }}
-            className="flex flex-col gap-3"
+            className="flex flex-col gap-4"
           >
-            <p className="text-sm text-[color:var(--muted-foreground)]">
-              Мы отправим 6-значный код на email, чтобы подтвердить бронь. Пароль не нужен.
+            <p className="text-sm text-[var(--color-fg-muted)]">
+              Введи email — пришлём 6-значный код для подтверждения брони.
             </p>
-            <input
-              type="email"
-              required
-              autoFocus
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value.trim())}
-              className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--ring)]"
-            />
-            <button
-              type="submit"
-              disabled={loading || !email}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-[var(--color-brand-500)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-brand-600)] disabled:opacity-60"
-            >
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            <Field label="Email">
+              <Input
+                type="email"
+                required
+                autoFocus
+                value={email}
+                onChange={(e) => setEmail(e.target.value.trim())}
+                placeholder="you@example.com"
+              />
+            </Field>
+            <Button type="submit" loading={loading} disabled={!email}>
+              <Mail className="h-4 w-4" />
               Получить код
-            </button>
+            </Button>
           </form>
         )}
 
@@ -212,72 +189,80 @@ export function BookingSheet({
               e.preventDefault();
               verifyAndBook();
             }}
-            className="flex flex-col gap-3"
+            className="flex flex-col gap-4"
           >
-            <p className="text-sm text-[color:var(--muted-foreground)]">
-              Код отправлен на <span className="font-medium">{email}</span>. Введи его ниже.
-            </p>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="\d{6,10}"
-              maxLength={10}
-              required
-              autoFocus
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-              className="rounded-md border border-border bg-background px-3 py-3 text-center text-xl tracking-[0.3em]"
-            />
-            <button
-              type="submit"
-              disabled={loading || code.length < 6}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-[var(--color-brand-500)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-brand-600)] disabled:opacity-60"
-            >
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            <div className="flex items-start gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-elev-2)] p-3 text-xs text-[var(--color-fg-muted)]">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-brand-400)]" />
+              <span>
+                Код отправлен на <b className="text-[var(--color-fg)]">{email}</b>. Проверь «Промоакции» / «Спам».
+              </span>
+            </div>
+            <Field label="Код из письма">
+              <Input
+                type="text"
+                inputMode="numeric"
+                pattern="\d{6,10}"
+                maxLength={10}
+                required
+                autoFocus
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                className="h-14 text-center font-mono text-2xl tracking-[0.4em]"
+              />
+            </Field>
+            <Button type="submit" loading={loading} disabled={code.length < 6}>
               Подтвердить и забронировать
+            </Button>
+            <button
+              type="button"
+              onClick={() => setStage("email")}
+              className="inline-flex items-center justify-center gap-1.5 text-xs text-[var(--color-fg-muted)] transition hover:text-[var(--color-fg)]"
+            >
+              <ArrowLeft className="h-3 w-3" />
+              Поменять email
             </button>
           </form>
         )}
 
         {stage === "creating" && (
-          <div className="flex flex-col items-center gap-3 py-6 text-sm text-[color:var(--muted-foreground)]">
-            <Loader2 className="h-6 w-6 animate-spin text-[var(--color-brand-500)]" />
+          <div className="flex flex-col items-center gap-3 py-10 text-sm text-[var(--color-fg-muted)]">
+            <Loader2 className="h-7 w-7 animate-spin text-[var(--color-brand-500)]" />
             Создаём бронь…
           </div>
         )}
 
         {stage === "success" && bookingCode && (
-          <div className="flex flex-col items-center gap-3 text-center">
+          <div className="flex flex-col items-center gap-4 py-2 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--color-success)]/15 text-[var(--color-success)]">
-              <ShieldCheck className="h-7 w-7" />
+              <ShieldCheck className="h-8 w-8" />
             </div>
-            <p className="font-semibold">Код брони</p>
-            <p className="select-all rounded-md border border-border bg-muted px-4 py-2 font-mono text-xl">
-              {bookingCode}
+            <div>
+              <div className="text-xs uppercase tracking-wider text-[var(--color-fg-subtle)]">
+                Код брони
+              </div>
+              <div className="mt-1 select-all rounded-[var(--radius-md)] border border-[var(--color-brand-500)]/30 bg-[var(--color-brand-500)]/10 px-5 py-3 font-mono text-2xl font-bold tracking-wider text-[var(--color-brand-200)]">
+                {bookingCode}
+              </div>
+            </div>
+            <p className="text-xs text-[var(--color-fg-muted)]">
+              Покажи этот код на ресепшене. Письмо с QR-кодом и ссылкой — у тебя на почте.
             </p>
-            <p className="text-xs text-[color:var(--muted-foreground)]">
-              Покажи этот код на ресепшене. Ссылка и QR — в письме.
-            </p>
-            <a
-              href={`/my/bookings`}
-              className="mt-2 inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm hover:bg-muted"
-            >
-              Мои брони
-            </a>
-            <a
-              href={`/c/${clubSlug}`}
-              className="text-xs text-[color:var(--muted-foreground)] hover:underline"
-            >
-              Вернуться к клубу
-            </a>
+            <div className="mt-2 flex gap-2">
+              <Link href="/my/bookings">
+                <Button variant="outline">Мои брони</Button>
+              </Link>
+              <Link href={`/c/${clubSlug}`}>
+                <Button variant="ghost">Ещё ПК</Button>
+              </Link>
+            </div>
           </div>
         )}
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
-function SummaryList({
+function Summary({
   stations,
   zoneById,
   slot,
@@ -294,34 +279,51 @@ function SummaryList({
   const to = new Date(slot.to);
   return (
     <div className="flex flex-col gap-3 text-sm">
-      <div className="rounded-lg border border-border p-3">
-        <div className="text-xs text-[color:var(--muted-foreground)]">Время</div>
+      <Row label="Время">
         <div className="font-medium">
-          {from.toLocaleDateString("ru-RU")} · {from.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })} — {to.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
-          <span className="ml-2 text-[color:var(--muted-foreground)]">({hours.toFixed(1)} ч)</span>
+          {from.toLocaleDateString("ru-RU")} ·{" "}
+          {from.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })} —{" "}
+          {to.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
         </div>
+        <div className="text-xs text-[var(--color-fg-subtle)]">{hours.toFixed(1)} часа</div>
+      </Row>
+      <Row label={`Места (${stations.length})`}>
+        <ul className="flex flex-col gap-1.5">
+          {stations.map((s) => {
+            const z = zoneById.get(s.zone_id);
+            return (
+              <li key={s.id} className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <span
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: z?.color }}
+                  />
+                  <span className="font-medium">{s.name}</span>
+                  <span className="text-xs text-[var(--color-fg-subtle)]">{z?.name}</span>
+                </span>
+                <span className="text-[var(--color-fg-muted)]">
+                  {formatTenge(Math.round((z?.price_per_hour ?? 0) * hours))}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </Row>
+      <div className="flex items-center justify-between rounded-[var(--radius-md)] bg-[var(--color-brand-500)]/10 px-4 py-3">
+        <span className="text-sm text-[var(--color-fg-muted)]">Итого</span>
+        <span className="text-xl font-bold tracking-tight">{formatTenge(total)}</span>
       </div>
-      <div className="flex flex-col gap-1 rounded-lg border border-border p-3">
-        <div className="text-xs text-[color:var(--muted-foreground)]">Места ({stations.length})</div>
-        {stations.map((s) => {
-          const z = zoneById.get(s.zone_id);
-          return (
-            <div key={s.id} className="flex items-center justify-between">
-              <span>
-                <span className="mr-2 inline-block h-2 w-2 rounded-full align-middle" style={{ backgroundColor: z?.color }} />
-                {s.name} <span className="text-[color:var(--muted-foreground)]">· {z?.name}</span>
-              </span>
-              <span className="text-[color:var(--muted-foreground)]">
-                {formatTenge(Math.round((z?.price_per_hour ?? 0) * hours))}
-              </span>
-            </div>
-          );
-        })}
+    </div>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-elev-2)] p-3">
+      <div className="text-[10px] uppercase tracking-wider text-[var(--color-fg-subtle)]">
+        {label}
       </div>
-      <div className="flex items-center justify-between rounded-lg border border-border p-3">
-        <span className="text-[color:var(--muted-foreground)]">Итого</span>
-        <span className="text-lg font-bold">{formatTenge(total)}</span>
-      </div>
+      <div className="mt-1.5">{children}</div>
     </div>
   );
 }

@@ -32,7 +32,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ru" suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground antialiased">
         <QueryProvider>{children}</QueryProvider>
-        <Toaster richColors closeButton position="top-center" />
+        <Toaster
+          richColors
+          closeButton
+          position="top-center"
+          theme="dark"
+          toastOptions={{
+            style: {
+              background: "var(--color-bg-elev)",
+              border: "1px solid var(--color-border-strong)",
+              color: "var(--color-fg)",
+            },
+          }}
+        />
       </body>
     </html>
   );

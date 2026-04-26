@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { BellRing, Check, Loader2, UserX } from "lucide-react";
+import { BellRing, Check, Clock, Loader2, Maximize2, UserX } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatTenge } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 type Booking = {
   id: string;
@@ -31,9 +33,16 @@ export function TodayBoard({
   const [bookings, setBookings] = useState<Booking[]>(initial);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const soundRef = useRef<HTMLAudioElement | null>(null);
 
-  // Realtime-подписка
+  // Тикер каждые 30с — обновляем подсветку «сейчас идёт» / «через 30 мин»
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Realtime
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -48,7 +57,7 @@ export function TodayBoard({
               setBookings((prev) => upsert(prev, full));
               setHighlightId(full.id);
               playSound(soundRef.current);
-              toast.success(`Новая бронь: ${full.booking_code}`);
+              toast.success(`Новая бронь · ${full.booking_code}`);
               setTimeout(() => setHighlightId(null), 5000);
             }
           } else if (payload.eventType === "UPDATE") {
@@ -58,7 +67,6 @@ export function TodayBoard({
         },
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
@@ -73,107 +81,67 @@ export function TodayBoard({
       toast.error(json?.error?.message ?? "Не удалось выполнить");
       return;
     }
-    toast.success(action === "check-in" ? "Гость отмечен" : "No-show зафиксирован");
+    toast.success(action === "check-in" ? "Гость пришёл" : "No-show зафиксирован");
   }, []);
 
+  const counts = {
+    upcoming: bookings.filter((b) => b.status === "confirmed").length,
+    active: bookings.filter((b) => b.status === "checked_in").length,
+    done: bookings.filter((b) => ["completed", "cancelled", "no_show"].includes(b.status)).length,
+  };
+
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-screen flex-col bg-[var(--color-bg)]">
       <audio ref={soundRef} preload="auto">
         <source src="/sounds/new-booking.mp3" type="audio/mpeg" />
       </audio>
 
-      <header className="flex items-center justify-between border-b border-border p-4">
-        <div>
-          <h1 className="text-lg font-semibold">Today-board · {clubName}</h1>
-          <p className="text-xs text-[color:var(--muted-foreground)]">
-            {bookings.length} броней сегодня
-          </p>
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] bg-[var(--color-bg-elev)] px-5 py-3">
+        <div className="flex flex-col">
+          <span className="text-xs text-[var(--color-fg-subtle)]">Today-board</span>
+          <h1 className="text-lg font-semibold tracking-tight">{clubName}</h1>
         </div>
-        <button
-          type="button"
-          onClick={() => enableAudioAndNotifications(soundRef.current)}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted"
-        >
-          <BellRing className="h-3.5 w-3.5" /> Звук + уведомления
-        </button>
+        <div className="flex items-center gap-2">
+          <Badge variant="brand">{counts.upcoming} впереди</Badge>
+          <Badge variant="success">{counts.active} в игре</Badge>
+          <Badge variant="outline">{counts.done} завершено</Badge>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => enableAudioAndNotifications(soundRef.current)}
+          >
+            <BellRing className="h-3.5 w-3.5" />
+            Звук + уведомления
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => document.documentElement.requestFullscreen?.()}
+            aria-label="Полный экран"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </Button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-auto">
         {bookings.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-sm text-[color:var(--muted-foreground)]">
-            Сегодня пока нет броней
-          </div>
+          <EmptyState />
         ) : (
-          <ul className="divide-y divide-border">
-            {bookings.map((b) => {
-              const isNew = b.id === highlightId;
-              const accent = accentFor(b);
-              return (
-                <li
-                  key={b.id}
-                  className={`grid grid-cols-12 items-center gap-3 px-4 py-3 transition ${
-                    isNew ? "bg-[var(--color-success)]/10 ring-2 ring-[var(--color-success)]" : ""
-                  } ${accent.row}`}
-                >
-                  <div className="col-span-2 font-mono text-sm">
-                    {timeStr(b.starts_at)}
-                    <span className="text-[color:var(--muted-foreground)]"> · {timeStr(b.ends_at)}</span>
-                  </div>
-                  <div className="col-span-3">
-                    <p className="font-medium">
-                      {b.users?.full_name ?? b.users?.email?.split("@")[0] ?? "—"}
-                    </p>
-                    <p className="text-xs text-[color:var(--muted-foreground)]">{b.users?.phone ?? b.users?.email}</p>
-                  </div>
-                  <div className="col-span-3">
-                    <p className="text-sm">
-                      {b.booking_stations.map((bs) => bs.stations?.name).filter(Boolean).join(", ")}
-                    </p>
-                    {b.notes && <p className="text-xs text-[color:var(--muted-foreground)]">{b.notes}</p>}
-                  </div>
-                  <div className="col-span-1 font-mono text-xs">{b.booking_code}</div>
-                  <div className="col-span-1 text-right text-sm">{formatTenge(b.total_amount)}</div>
-                  <div className="col-span-2 flex justify-end gap-2">
-                    {b.status === "confirmed" && (
-                      <>
-                        <ActionBtn
-                          title="Check-in"
-                          color="success"
-                          onClick={() => act(b.id, "check-in")}
-                          loading={pending === b.id}
-                        >
-                          <Check className="h-4 w-4" />
-                        </ActionBtn>
-                        <ActionBtn
-                          title="No-show"
-                          color="danger"
-                          onClick={() => act(b.id, "no-show")}
-                          loading={pending === b.id}
-                        >
-                          <UserX className="h-4 w-4" />
-                        </ActionBtn>
-                      </>
-                    )}
-                    {b.status === "checked_in" && (
-                      <span className="rounded-md bg-[var(--color-success)]/15 px-2 py-1 text-xs font-medium text-[var(--color-success)]">
-                        В игре
-                      </span>
-                    )}
-                    {b.status === "completed" && (
-                      <span className="rounded-md bg-muted px-2 py-1 text-xs">Завершена</span>
-                    )}
-                    {b.status === "cancelled" && (
-                      <span className="rounded-md bg-muted px-2 py-1 text-xs">Отменена</span>
-                    )}
-                    {b.status === "no_show" && (
-                      <span className="rounded-md bg-[var(--color-danger)]/15 px-2 py-1 text-xs text-[var(--color-danger)]">
-                        No-show
-                      </span>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
+          <ul className="divide-y divide-[var(--color-border)]">
+            {bookings.map((b) => (
+              <Row
+                key={b.id}
+                b={b}
+                isNew={b.id === highlightId}
+                pending={pending === b.id}
+                now={now}
+                onCheckIn={() => act(b.id, "check-in")}
+                onNoShow={() => act(b.id, "no-show")}
+              />
+            ))}
           </ul>
         )}
       </div>
@@ -181,47 +149,128 @@ export function TodayBoard({
   );
 }
 
-function ActionBtn({
-  children,
-  onClick,
-  title,
-  loading,
-  color,
+function Row({
+  b,
+  isNew,
+  pending,
+  now,
+  onCheckIn,
+  onNoShow,
 }: {
-  children: React.ReactNode;
-  onClick: () => void;
-  title: string;
-  loading: boolean;
-  color: "success" | "danger";
+  b: Booking;
+  isNew: boolean;
+  pending: boolean;
+  now: number;
+  onCheckIn: () => void;
+  onNoShow: () => void;
 }) {
-  const bg = color === "success" ? "bg-[var(--color-success)]" : "bg-[var(--color-danger)]";
+  const start = new Date(b.starts_at).getTime();
+  const end = new Date(b.ends_at).getTime();
+  const isLive = b.status === "checked_in" || (now >= start && now <= end);
+  const isSoon = b.status === "confirmed" && start - now <= 30 * 60 * 1000 && start - now > 0;
+  const isPast = now > end;
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={loading}
-      title={title}
-      className={`inline-flex h-8 w-8 items-center justify-center rounded-md text-white ${bg} disabled:opacity-60`}
+    <li
+      className={`grid grid-cols-12 items-center gap-3 px-5 py-3.5 transition-colors ${
+        isNew
+          ? "animate-pulse-ring bg-[var(--color-success)]/10"
+          : isLive
+            ? "bg-[var(--color-success)]/5"
+            : isSoon
+              ? "bg-[var(--color-warning)]/5"
+              : isPast
+                ? "opacity-60"
+                : ""
+      }`}
     >
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : children}
-    </button>
+      <div className="col-span-3 sm:col-span-2">
+        <div className="font-mono text-sm font-medium tabular-nums">
+          {timeStr(b.starts_at)} — {timeStr(b.ends_at)}
+        </div>
+        <div className="mt-0.5 text-[11px] text-[var(--color-fg-subtle)]">
+          <Clock className="mr-0.5 inline h-3 w-3 align-[-2px]" />
+          {hoursStr(start, end)}
+        </div>
+      </div>
+      <div className="col-span-9 sm:col-span-3">
+        <div className="truncate font-medium">
+          {b.users?.full_name ?? b.users?.email?.split("@")[0] ?? "—"}
+        </div>
+        <div className="truncate text-xs text-[var(--color-fg-subtle)]">
+          {b.users?.phone ?? b.users?.email}
+        </div>
+      </div>
+      <div className="col-span-12 sm:col-span-3">
+        <div className="text-sm">
+          {b.booking_stations.map((bs) => bs.stations?.name).filter(Boolean).join(", ") || "—"}
+        </div>
+        {b.notes && (
+          <div className="truncate text-xs text-[var(--color-fg-subtle)]">{b.notes}</div>
+        )}
+      </div>
+      <div className="col-span-6 sm:col-span-2 flex items-center gap-2 font-mono text-xs">
+        <span className="rounded-md bg-[var(--color-bg-elev-2)] px-2 py-0.5">{b.booking_code}</span>
+        <span className="text-[var(--color-fg-muted)]">{formatTenge(b.total_amount)}</span>
+      </div>
+      <div className="col-span-6 sm:col-span-2 flex justify-end gap-2">
+        <StatusActions b={b} pending={pending} onCheckIn={onCheckIn} onNoShow={onNoShow} />
+      </div>
+    </li>
   );
 }
 
-function accentFor(b: Booking) {
-  const now = Date.now();
-  const start = new Date(b.starts_at).getTime();
-  const end = new Date(b.ends_at).getTime();
-  if (b.status === "checked_in" || (now >= start && now <= end)) return { row: "bg-[var(--color-success)]/5" };
-  if (start - now <= 30 * 60 * 1000 && start - now > 0) return { row: "bg-[var(--color-warning)]/5" };
-  if (now > end) return { row: "opacity-60" };
-  return { row: "" };
+function StatusActions({
+  b,
+  pending,
+  onCheckIn,
+  onNoShow,
+}: {
+  b: Booking;
+  pending: boolean;
+  onCheckIn: () => void;
+  onNoShow: () => void;
+}) {
+  if (b.status === "confirmed") {
+    return (
+      <>
+        <Button size="icon" variant="success" loading={pending} onClick={onCheckIn} aria-label="Check-in">
+          <Check className="h-4 w-4" />
+        </Button>
+        <Button size="icon" variant="danger" loading={pending} onClick={onNoShow} aria-label="No-show">
+          <UserX className="h-4 w-4" />
+        </Button>
+      </>
+    );
+  }
+  if (b.status === "checked_in") return <Badge variant="success">В игре</Badge>;
+  if (b.status === "completed") return <Badge variant="default">Завершена</Badge>;
+  if (b.status === "cancelled") return <Badge variant="default">Отменена</Badge>;
+  if (b.status === "no_show") return <Badge variant="danger">No-show</Badge>;
+  return <Badge variant="outline">{b.status}</Badge>;
+}
+
+function EmptyState() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-sm text-[var(--color-fg-muted)]">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-bg-elev)]">
+        <Clock className="h-5 w-5 text-[var(--color-fg-subtle)]" />
+      </div>
+      Сегодня ещё нет броней
+      <span className="text-xs text-[var(--color-fg-subtle)]">
+        Когда геймеры начнут бронировать — они появятся здесь в реальном времени
+      </span>
+    </div>
+  );
 }
 
 function timeStr(iso: string) {
   return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
-
+function hoursStr(startMs: number, endMs: number) {
+  const h = Math.round(((endMs - startMs) / 3600_000) * 10) / 10;
+  return `${h} ч`;
+}
 function upsert(list: Booking[], b: Booking) {
   const i = list.findIndex((x) => x.id === b.id);
   if (i === -1) return [...list, b].sort((a, z) => a.starts_at.localeCompare(z.starts_at));
@@ -229,7 +278,6 @@ function upsert(list: Booking[], b: Booking) {
   copy[i] = b;
   return copy;
 }
-
 async function fetchBooking(
   supabase: ReturnType<typeof createClient>,
   id: string,
@@ -243,13 +291,11 @@ async function fetchBooking(
     .maybeSingle();
   return (data as unknown as Booking) ?? null;
 }
-
 function playSound(el: HTMLAudioElement | null) {
   if (!el) return;
   el.currentTime = 0;
-  el.play().catch(() => {}); // ignore autoplay block
+  el.play().catch(() => {});
 }
-
 async function enableAudioAndNotifications(el: HTMLAudioElement | null) {
   try {
     if (el) {
@@ -260,8 +306,8 @@ async function enableAudioAndNotifications(el: HTMLAudioElement | null) {
     if ("Notification" in window && Notification.permission === "default") {
       await Notification.requestPermission();
     }
-    toast.success("Звук и уведомления включены");
+    toast.success("Звук включён");
   } catch {
-    toast.error("Не удалось включить звук — проверь настройки браузера");
+    toast.error("Браузер блокирует звук — проверь настройки");
   }
 }

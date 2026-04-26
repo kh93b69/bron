@@ -3,10 +3,14 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Mail } from "lucide-react";
+import { ArrowLeft, Mail, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input, Field } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LogoMark } from "@/components/ui/logo";
 
-type Stage = "email" | "code" | "success";
+type Stage = "email" | "code";
 
 export function LoginForm() {
   const params = useSearchParams();
@@ -30,7 +34,7 @@ export function LoginForm() {
       toast.error(error.message);
       return;
     }
-    toast.success("Код отправлен на почту");
+    toast.success("Код отправлен");
     setStage("code");
   }
 
@@ -49,8 +53,6 @@ export function LoginForm() {
       return;
     }
 
-    // Если пришли с ?redirect=... — уважаем его.
-    // Иначе — смарт-редирект: есть клуб → /admin, нет → /onboarding/club.
     let destination = redirectTo;
     if (redirectTo === "/") {
       const { data: memberships } = await supabase
@@ -61,33 +63,27 @@ export function LoginForm() {
       destination = memberships && memberships.length > 0 ? "/admin" : "/onboarding/club";
     }
 
-    setStage("success");
-    // Полный reload вместо router.push — гарантируем, что server-components
-    // (/admin/layout, /onboarding/club) увидят свежую Supabase-сессию в куках.
-    // Клиентская навигация иногда не успевает синхронизировать sb-*-auth-token.
     window.location.assign(destination);
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
-      <div className="rounded-2xl border border-border p-8">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-700)]">
-            <Mail className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Вход в CyberBook</h1>
-            <p className="text-sm text-[color:var(--muted-foreground)]">
+    <Card className="w-full">
+      <CardHeader>
+        <div className="mb-2 flex items-center gap-3">
+          <LogoMark />
+          <div className="flex flex-col">
+            <CardTitle className="text-lg">Вход в CyberBook</CardTitle>
+            <CardDescription className="text-xs">
               По коду из email — без пароля
-            </p>
+            </CardDescription>
           </div>
         </div>
-
+      </CardHeader>
+      <CardContent>
         {stage === "email" && (
-          <form onSubmit={sendOtp} className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1 text-sm">
-              <span>Email</span>
-              <input
+          <form onSubmit={sendOtp} className="flex flex-col gap-4">
+            <Field label="Email">
+              <Input
                 type="email"
                 required
                 autoFocus
@@ -95,28 +91,26 @@ export function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value.trim())}
                 placeholder="you@example.com"
-                className="rounded-md border border-border bg-background px-3 py-2 outline-none focus:ring-2 focus:ring-[var(--ring)]"
               />
-            </label>
-            <button
-              type="submit"
-              disabled={loading || !email}
-              className="mt-2 inline-flex items-center justify-center gap-2 rounded-md bg-[var(--color-brand-500)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-brand-600)] disabled:opacity-60"
-            >
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            </Field>
+            <Button type="submit" disabled={!email} loading={loading}>
+              <Mail className="h-4 w-4" />
               Получить код
-            </button>
+            </Button>
           </form>
         )}
 
         {stage === "code" && (
-          <form onSubmit={verifyOtp} className="flex flex-col gap-3">
-            <p className="text-sm text-[color:var(--muted-foreground)]">
-              Мы отправили 6-значный код на <span className="font-medium">{email}</span>.
-            </p>
-            <label className="flex flex-col gap-1 text-sm">
-              <span>Код из письма</span>
-              <input
+          <form onSubmit={verifyOtp} className="flex flex-col gap-4">
+            <div className="flex items-start gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-elev-2)] p-3 text-xs text-[var(--color-fg-muted)]">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-brand-400)]" />
+              <span>
+                Мы отправили код на <span className="font-semibold text-[var(--color-fg)]">{email}</span>.
+                Письмо может попасть в «Промоакции» / «Спам».
+              </span>
+            </div>
+            <Field label="Код из письма">
+              <Input
                 type="text"
                 inputMode="numeric"
                 pattern="\d{6,10}"
@@ -125,27 +119,26 @@ export function LoginForm() {
                 autoFocus
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                className="rounded-md border border-border bg-background px-3 py-3 text-center text-xl tracking-[0.3em] outline-none focus:ring-2 focus:ring-[var(--ring)]"
+                className="h-14 text-center text-2xl tracking-[0.4em] font-mono"
               />
-            </label>
-            <button
-              type="submit"
-              disabled={loading || code.length < 6}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-[var(--color-brand-500)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-brand-600)] disabled:opacity-60"
-            >
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            </Field>
+            <Button type="submit" disabled={code.length < 6} loading={loading}>
               Войти
-            </button>
+            </Button>
             <button
               type="button"
-              onClick={() => setStage("email")}
-              className="text-xs text-[color:var(--muted-foreground)] hover:underline"
+              onClick={() => {
+                setStage("email");
+                setCode("");
+              }}
+              className="inline-flex items-center justify-center gap-1.5 text-xs text-[var(--color-fg-muted)] transition hover:text-[var(--color-fg)]"
             >
+              <ArrowLeft className="h-3 w-3" />
               Поменять email
             </button>
           </form>
         )}
-      </div>
-    </main>
+      </CardContent>
+    </Card>
   );
 }

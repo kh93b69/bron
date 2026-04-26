@@ -1,6 +1,7 @@
 "use client";
 
-import { Calendar, Clock3 } from "lucide-react";
+import { Calendar } from "lucide-react";
+import { Card } from "@/components/ui/card";
 
 export type Slot = { from: string; to: string };
 
@@ -9,7 +10,7 @@ const DURATIONS = [
   { h: 2, label: "2 ч" },
   { h: 3, label: "3 ч" },
   { h: 5, label: "5 ч" },
-  { h: 8, label: "ночь (8 ч)" },
+  { h: 8, label: "ночь" },
 ];
 
 export function SlotPicker({
@@ -31,7 +32,6 @@ export function SlotPicker({
     to.setHours(to.getHours() + duration);
     onChange({ from: d.toISOString(), to: to.toISOString() });
   }
-
   function setHour(hour: number) {
     const d = new Date(from);
     d.setHours(hour, 0, 0, 0);
@@ -39,7 +39,6 @@ export function SlotPicker({
     to.setHours(to.getHours() + duration);
     onChange({ from: d.toISOString(), to: to.toISOString() });
   }
-
   function setDuration(h: number) {
     const to = new Date(from);
     to.setHours(to.getHours() + h);
@@ -49,29 +48,38 @@ export function SlotPicker({
   const dateStr = from.toISOString().slice(0, 10);
 
   return (
-    <section className="flex flex-col gap-3 rounded-xl border border-border p-4">
-      <div className="flex items-center gap-2 text-sm font-medium">
-        <Calendar className="h-4 w-4" /> Когда будешь играть
-        <span className="ml-auto text-xs text-[color:var(--muted-foreground)]">TZ {timezone}</span>
+    <Card className="p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="flex items-center gap-2 text-sm font-medium">
+          <Calendar className="h-4 w-4 text-[var(--color-brand-400)]" />
+          Когда играем
+        </h2>
+        <span className="text-[10px] uppercase tracking-wider text-[var(--color-fg-subtle)]">
+          {timezone}
+        </span>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-[color:var(--muted-foreground)]">Дата</span>
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-fg-subtle)]">
+            Дата
+          </span>
           <input
             type="date"
             value={dateStr}
             min={new Date().toISOString().slice(0, 10)}
             onChange={(e) => setDate(e.target.value)}
-            className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+            className="h-9 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-elev-2)] px-3 text-sm"
           />
-        </label>
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-[color:var(--muted-foreground)]">Час начала</span>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-fg-subtle)]">
+            Час начала
+          </span>
           <select
             value={from.getHours()}
             onChange={(e) => setHour(Number(e.target.value))}
-            className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+            className="h-9 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-elev-2)] px-3 text-sm"
           >
             {Array.from({ length: 24 }, (_, h) => (
               <option key={h} value={h}>
@@ -79,10 +87,10 @@ export function SlotPicker({
               </option>
             ))}
           </select>
-        </label>
-        <div className="flex flex-col gap-1 text-xs">
-          <span className="text-[color:var(--muted-foreground)]">
-            <Clock3 className="inline h-3 w-3" /> Длительность
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-fg-subtle)]">
+            Длительность
           </span>
           <div className="flex flex-wrap gap-1">
             {DURATIONS.map((d) => (
@@ -90,10 +98,10 @@ export function SlotPicker({
                 key={d.h}
                 type="button"
                 onClick={() => setDuration(d.h)}
-                className={`rounded-md border px-2.5 py-1.5 text-xs transition ${
+                className={`flex-1 rounded-[var(--radius-md)] border px-2.5 py-1.5 text-xs font-medium transition ${
                   duration === d.h
                     ? "border-[var(--color-brand-500)] bg-[var(--color-brand-500)] text-white"
-                    : "border-border hover:bg-muted"
+                    : "border-[var(--color-border-strong)] bg-[var(--color-bg-elev-2)] hover:border-[var(--color-brand-500)]/40"
                 }`}
               >
                 {d.label}
@@ -102,6 +110,6 @@ export function SlotPicker({
           </div>
         </div>
       </div>
-    </section>
+    </Card>
   );
 }
