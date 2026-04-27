@@ -1,17 +1,53 @@
-import { ComingSoon } from "@/components/admin/coming-soon";
+import { requireCurrentClub } from "@/server/clubs/current";
+import { MapEditor } from "./_components/map-editor";
 
-export default function MapEditorPlaceholder() {
+export const dynamic = "force-dynamic";
+
+export default async function MapEditorPage() {
+  const { supabase, club } = await requireCurrentClub();
+
+  const [{ data: stations }, { data: zones }, { data: map }] = await Promise.all([
+    supabase
+      .from("stations")
+      .select("id, name, zone_id, position_x, position_y, status")
+      .eq("club_id", club.id)
+      .order("name"),
+    supabase
+      .from("zones")
+      .select("id, name, color")
+      .eq("club_id", club.id)
+      .order("sort_order"),
+    supabase
+      .from("club_maps")
+      .select("layout, version")
+      .eq("club_id", club.id)
+      .maybeSingle(),
+  ]);
+
   return (
-    <ComingSoon
-      title="Редактор карты зала"
-      description="Drag-n-drop иконок ПК на сетке. Размещай VIP / Bootcamp / General как у себя в зале."
-      bullets={[
-        "Сетка 4×4 — 40×40, расстановка ПК мышью или тапами",
-        "Стены / перегородки / подписи (БАР, ВХОД, ТУАЛЕТ)",
-        "Превью «как видит геймер» в один клик",
-        "Автосохранение в localStorage + версионирование",
-        "Реализуется в Спринте 3",
-      ]}
+    <MapEditor
+      clubId={club.id}
+      clubSlug={club.slug}
+      stations={(stations ?? []) as Station[]}
+      zones={(zones ?? []) as Zone[]}
+      layout={(map?.layout ?? null) as Layout | null}
+      version={map?.version ?? 1}
     />
   );
 }
+
+type Station = {
+  id: string;
+  name: string;
+  zone_id: string;
+  position_x: number;
+  position_y: number;
+  status: "active" | "maintenance" | "retired";
+};
+type Zone = { id: string; name: string; color: string };
+type Layout = {
+  gridW: number;
+  gridH: number;
+  cellSize?: number;
+  labels?: Array<{ x: number; y: number; text: string }>;
+} | null;
