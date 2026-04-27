@@ -1,17 +1,25 @@
-import { ComingSoon } from "@/components/admin/coming-soon";
+import { requireCurrentClub } from "@/server/clubs/current";
+import { ZonesManager } from "./_components/zones-manager";
 
-export default function ZonesPlaceholder() {
-  return (
-    <ComingSoon
-      title="Зоны и тарифы"
-      description="Создавай зоны (VIP / Bootcamp / General), задавай цвет на карте и стоимость в час."
-      bullets={[
-        "Drag-n-drop порядок зон",
-        "Цветовой пикер для маркировки на карте",
-        "Цена в час — целое число тенге, без копеек",
-        "Привязка зоны к каждому ПК через выпадающий список",
-        "Реализуется в Спринте 2 (следующий деплой)",
-      ]}
-    />
-  );
+export const dynamic = "force-dynamic";
+
+export default async function ZonesPage() {
+  const { supabase, club } = await requireCurrentClub();
+
+  const { data: zones } = await supabase
+    .from("zones")
+    .select("id, name, color, price_per_hour, sort_order, description")
+    .eq("club_id", club.id)
+    .order("sort_order", { ascending: true });
+
+  return <ZonesManager clubId={club.id} initial={(zones ?? []) as Zone[]} />;
 }
+
+type Zone = {
+  id: string;
+  name: string;
+  color: string;
+  price_per_hour: number;
+  sort_order: number;
+  description: string | null;
+};

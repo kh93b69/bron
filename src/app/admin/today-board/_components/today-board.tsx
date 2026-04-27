@@ -11,12 +11,14 @@ import { Button } from "@/components/ui/button";
 type Booking = {
   id: string;
   booking_code: string;
-  user_id: string;
+  user_id: string | null;
   starts_at: string;
   ends_at: string;
   status: "pending" | "confirmed" | "checked_in" | "completed" | "cancelled" | "no_show";
   total_amount: number;
   notes: string | null;
+  guest_name: string | null;
+  guest_phone: string | null;
   users: { full_name: string | null; email: string; phone: string | null } | null;
   booking_stations: Array<{ station_id: string; stations: { name: string } | null }>;
 };
@@ -194,11 +196,16 @@ function Row({
         </div>
       </div>
       <div className="col-span-9 sm:col-span-3">
-        <div className="truncate font-medium">
-          {b.users?.full_name ?? b.users?.email?.split("@")[0] ?? "—"}
+        <div className="flex items-center gap-1.5">
+          <span className="truncate font-medium">
+            {b.users?.full_name ?? b.guest_name ?? b.users?.email?.split("@")[0] ?? "—"}
+          </span>
+          {!b.users && b.guest_name && (
+            <Badge variant="outline" className="text-[9px]">walk-in</Badge>
+          )}
         </div>
         <div className="truncate text-xs text-[var(--color-fg-subtle)]">
-          {b.users?.phone ?? b.users?.email}
+          {b.users?.phone ?? b.guest_phone ?? b.users?.email ?? ""}
         </div>
       </div>
       <div className="col-span-12 sm:col-span-3">
@@ -285,7 +292,7 @@ async function fetchBooking(
   const { data } = await supabase
     .from("bookings")
     .select(
-      "id, booking_code, user_id, starts_at, ends_at, status, total_amount, notes, users(full_name, email, phone), booking_stations(station_id, stations(name))",
+      "id, booking_code, user_id, starts_at, ends_at, status, total_amount, notes, guest_name, guest_phone, users(full_name, email, phone), booking_stations(station_id, stations(name))",
     )
     .eq("id", id)
     .maybeSingle();
