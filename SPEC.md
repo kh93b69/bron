@@ -63,7 +63,7 @@ clubs
   cover_url       text
   description     text
   status          text NOT NULL DEFAULT 'active'  -- active | paused | archived
-  subscription_plan text NOT NULL DEFAULT 'free'  -- free | start | pro | network
+  subscription_plan text NOT NULL DEFAULT 'pro'  -- pro | network (free-tier удалён, см. модуль 15)
   created_at      timestamptz NOT NULL DEFAULT now()
 
 club_members
@@ -193,9 +193,10 @@ payment_intents
 subscriptions
   id              uuid PK
   club_id         uuid NOT NULL UNIQUE REFERENCES clubs(id)
-  plan            text NOT NULL               -- start | pro | network
+  plan            text NOT NULL               -- pro | network
   billing_period  text NOT NULL DEFAULT 'monthly'  -- monthly | yearly
-  status          text NOT NULL               -- trialing | active | past_due | cancelled
+  status          text NOT NULL               -- active | past_due | cancelled
+  intro_used_at   timestamptz                 -- когда клуб использовал 34 990 ₸ introductory month (раз на клуб)
   current_period_start timestamptz NOT NULL
   current_period_end   timestamptz NOT NULL
   cancel_at_period_end boolean NOT NULL DEFAULT false
@@ -783,18 +784,17 @@ POST /api/payments/webhook/subscription  (от провайдера)
 ```
 
 ### Бизнес-логика
-- Trial: первые 14 дней на Pro — бесплатно, далее auto-renew (требует согласия).
-- Гейтинг фич:
-  - `promotions.create` → требует plan IN ('pro','network')
-  - `blacklists.add` → требует plan IN ('pro','network')
-  - `payment_intents.create (deposit)` → требует plan IN ('pro','network')
-  - `analytics.advanced` → требует plan IN ('pro','network')
-  - Множественные локации → `network`.
-- Downgrade: применяется в конце периода. Даунгрейд с Pro → Start сразу деактивирует промо/блэклисты (сохраняются, но не применяются).
+- **Единый платный тариф**: Pro 34 990 ₸ за 1-й месяц → 69 990 ₸/мес далее. Annual –20% = 55 992 ₸/мес. Network (от 5 локаций) — 49 990 ₸/мес/локация.
+- Без trial, без free-tier. Свежесозданный клуб через `/onboarding/club` сразу попадает в `subscriptions.status='past_due'` и видит экран «оплати чтобы запустить». Бронирование на витрине заблокировано до первой оплаты (статус клуба `paused`).
+- Introductory price (34 990 ₸) — раз на клуб. После churn'а возврат идёт на 69 990 ₸ сразу. В `subscriptions` хранится `intro_used_at timestamptz` для отслеживания.
+- Гейтинг фич отсутствует — все Pro-функции (промо, чёрный список, аналитика, мульти-админ, walk-in) включены в тарифе с первого дня. Только локации: `> 1` локации требует Network.
+- `payment_intents` для депозитов геймеров — отдельная фаза v3, не часть Pro-тарифа.
+- Downgrade: невозможен (нет других тарифов). Cancel = `cancel_at_period_end=true`, в конце периода — `cancelled`, клуб переходит в `paused`.
 
 ### Крайние случаи
-- Subscription просрочилась (past_due) → гейтинг применяется сразу, но базовые функции остаются (бронирование продолжает работать на free).
-- Смена плана посередине периода → prorated billing (v2, в MVP — только end-of-period).
+- Subscription просрочилась (past_due > 7 дней) → клуб автоматически переходит в `paused`, витрина показывает «клуб временно не принимает онлайн-брони». Админка остаётся доступной для доплаты.
+- Смена с Pro на Network (рост числа локаций) — пропорциональный пересчёт текущего периода.
+- Сеть из 4 локаций → 5-я приводит автоскидку, на 6-й локации Pro перерассчитывается на Network для всех.
 
 ---
 
